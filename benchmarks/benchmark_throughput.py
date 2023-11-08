@@ -33,9 +33,14 @@ def sample_requests(
     completions = [completion for _, completion in dataset]
     completion_token_ids = tokenizer(completions).input_ids
     tokenized_dataset = []
+    count = 0
     for i in range(len(dataset)):
+        count += 1
+        i = i % 10
         output_len = len(completion_token_ids[i])
         tokenized_dataset.append((prompts[i], prompt_token_ids[i], output_len))
+        if count == num_requests:
+            break
 
     # Filter out too long sequences.
     filtered_dataset: List[Tuple[str, int, int]] = []
@@ -49,9 +54,10 @@ def sample_requests(
             continue
         filtered_dataset.append((prompt, prompt_len, output_len))
 
-    # Sample the requests.
-    sampled_requests = random.sample(filtered_dataset, num_requests)
-    return sampled_requests
+    # # Sample the requests.
+    # sampled_requests = random.sample(filtered_dataset, num_requests)
+    # return sampled_requests
+    return filtered_dataset
 
 
 def run_vllm(
@@ -65,6 +71,7 @@ def run_vllm(
     use_beam_search: bool,
     trust_remote_code: bool,
     dtype: str,
+    profiling: bool = False # For Gaudi2
 ) -> float:
     llm = LLM(
         model=model,
@@ -74,6 +81,10 @@ def run_vllm(
         seed=seed,
         trust_remote_code=trust_remote_code,
         dtype=dtype,
+        max_num_batched_tokens=(16 * 512),
+        max_num_seqs=256,
+        max_paddings=(16 * 512),
+        block_size=16,
     )
 
     # Add the requests to the engine.
@@ -95,7 +106,7 @@ def run_vllm(
 
     start = time.perf_counter()
     # FIXME(woosuk): Do use internal method.
-    llm._run_engine(use_tqdm=True)
+    llm._run_engine(use_tqdm=True, profiling=profiling)
     end = time.perf_counter()
     return end - start
 
@@ -173,7 +184,7 @@ def main(args: argparse.Namespace):
         elapsed_time = run_vllm(requests, args.model, args.tokenizer,
                                 args.quantization, args.tensor_parallel_size,
                                 args.seed, args.n, args.use_beam_search,
-                                args.trust_remote_code, args.dtype)
+                                args.trust_remote_code, args.dtype, args.profiling)
     elif args.backend == "hf":
         assert args.tensor_parallel_size == 1
         elapsed_time = run_hf(requests, args.model, tokenizer, args.n,
@@ -230,6 +241,7 @@ if __name__ == "__main__":
         'The "auto" option will use FP16 precision '
         'for FP32 and FP16 models, and BF16 precision '
         'for BF16 models.')
+    parser.add_argument("--profiling", action='store_true', help='Profiling first 4 steps')
     args = parser.parse_args()
 
     if args.backend == "vllm":

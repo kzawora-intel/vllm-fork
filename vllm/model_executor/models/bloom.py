@@ -29,7 +29,7 @@ from transformers import BloomConfig
 
 from vllm.model_executor.input_metadata import InputMetadata
 from vllm.model_executor.layers.activation import get_act_fn
-from vllm.model_executor.layers.attention import PagedAttentionWithALiBi
+from vllm.model_executor.layers.attention import PagedAttention
 from vllm.model_executor.layers.sampler import Sampler
 from vllm.model_executor.weight_utils import (hf_model_weights_iterator,
                                               load_tensor_parallel_weights)
@@ -102,8 +102,10 @@ class BloomAttention(nn.Module):
         alibi_slopes = alibi_slopes[head_start:head_end].tolist()
 
         scaling = self.head_dim**-0.5
-        self.attn = PagedAttentionWithALiBi(self.num_heads, self.head_dim,
-                                            scaling, alibi_slopes)
+        # self.attn = PagedAttentionWithALiBi(self.num_heads, self.head_dim,
+        #                                     scaling, alibi_slopes)
+        self.attn = PagedAttention(self.num_heads, self.head_dim,
+                                            scaling)
 
     def forward(
         self,

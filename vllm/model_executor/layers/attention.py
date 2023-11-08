@@ -4,8 +4,8 @@ from typing import Any, Dict, List, Optional
 import torch
 import torch.nn as nn
 from xformers import ops as xops
-from xformers.ops.fmha.attn_bias import (BlockDiagonalCausalMask,
-                                         LowerTriangularMaskWithTensorBias)
+# from xformers.ops.fmha.attn_bias import (BlockDiagonalCausalMask,
+#                                          LowerTriangularMaskWithTensorBias)
 
 from vllm import attention_ops
 from vllm import cache_ops
@@ -248,7 +248,7 @@ class PagedAttention(nn.Module):
         if num_prompt_tokens > 0:
             # Prompt run.
             assert input_metadata.num_generation_tokens == 0
-            self.set_attn_bias(input_metadata, dtype=query.dtype)
+            # self.set_attn_bias(input_metadata, dtype=query.dtype)
             self.multi_query_kv_attention(
                 output,
                 query,
@@ -273,13 +273,13 @@ class PagedAttention(nn.Module):
                 value_to_cache = value_to_cache[input_metadata.to_cache]
                 slot_mapping = slot_mapping[input_metadata.to_cache]
 
-            cache_ops.reshape_and_cache(
-                key_to_cache,
-                value_to_cache,
-                key_cache,
-                value_cache,
-                slot_mapping,
-            )
+            # cache_ops.reshape_and_cache(
+            #     key_to_cache,
+            #     value_to_cache,
+            #     key_cache,
+            #     value_cache,
+            #     slot_mapping,
+            # )
 
         if input_metadata.num_generation_tokens > 0:
             # Decoding run.
