@@ -295,7 +295,7 @@ class Worker:
                                         device="cuda")
         slot_mapping_tensor = torch.tensor(padded_slot_mapping,
                                            dtype=torch.long,
-                                           device="cuda")
+                                           device="cpu")
         context_lens_tensor = torch.tensor(context_lens,
                                            dtype=torch.int,
                                            device="cuda")

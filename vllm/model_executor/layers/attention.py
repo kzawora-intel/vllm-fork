@@ -279,6 +279,7 @@ class PagedAttention(nn.Module):
                 key_cache,
                 value_cache,
                 slot_mapping,
+                is_prompt=True if input_metadata.prompt_lens else False
             )
 
         if input_metadata.num_generation_tokens > 0:
