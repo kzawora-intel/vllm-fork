@@ -145,7 +145,8 @@ class PagedAttention(nn.Module):
             input_metadata: metadata for paged attention.
             alibi_slopes: shape = [num_heads]
         """
-        block_size = value_cache.shape[3]
+        # block_size = value_cache.shape[3]
+        block_size = 16
         num_seqs, num_heads, head_size = query.shape
         max_num_partitions = (
             (input_metadata.max_context_len + _PARTITION_SIZE - 1) //
