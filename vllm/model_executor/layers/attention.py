@@ -273,13 +273,13 @@ class PagedAttention(nn.Module):
                 value_to_cache = value_to_cache[input_metadata.to_cache]
                 slot_mapping = slot_mapping[input_metadata.to_cache]
 
-            # cache_ops.reshape_and_cache(
-            #     key_to_cache,
-            #     value_to_cache,
-            #     key_cache,
-            #     value_cache,
-            #     slot_mapping,
-            # )
+            cache_ops.reshape_and_cache(
+                key_to_cache,
+                value_to_cache,
+                key_cache,
+                value_cache,
+                slot_mapping,
+            )
 
         if input_metadata.num_generation_tokens > 0:
             # Decoding run.
