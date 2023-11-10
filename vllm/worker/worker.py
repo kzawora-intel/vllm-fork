@@ -271,7 +271,6 @@ class Worker:
                 generation_block_tables.append(block_table)
 
         def round_up(n, multiple):
-            print(n, multiple)
             return (n + multiple - 1) // multiple * multiple
 
         if self.block_size is not None:
@@ -308,7 +307,7 @@ class Worker:
                                            device="cpu")
         context_lens_tensor = torch.tensor(context_lens,
                                            dtype=torch.int,
-                                           device="cuda")
+                                           device="cpu")
         selected_token_indices = torch.tensor(selected_token_indices,
                                               dtype=torch.long,
                                               device="cuda")
@@ -318,7 +317,7 @@ class Worker:
         }
         block_tables_tensor = torch.tensor(padded_block_tables,
                                            dtype=torch.int,
-                                           device="cuda")
+                                           device="cpu")
 
         seq_data: Dict[int, SequenceData] = {}
         for seq_group_metadata in seq_group_metadata_list:
