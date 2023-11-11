@@ -36,7 +36,7 @@ def sample_requests(
     count = 0
     for i in range(len(dataset)):
         count += 1
-        i = i % 10
+        i = i % 4
         output_len = len(completion_token_ids[i])
         tokenized_dataset.append((prompts[i], prompt_token_ids[i], output_len))
         if count == num_requests:
@@ -81,10 +81,10 @@ def run_vllm(
         seed=seed,
         trust_remote_code=trust_remote_code,
         dtype=dtype,
-        max_num_batched_tokens=(16 * 512),
-        max_num_seqs=256,
-        max_paddings=(16 * 512),
-        block_size=16,
+        max_num_batched_tokens=(16 * 128),
+        max_num_seqs=20,
+        max_paddings=(16 * 128),
+        block_size=32,
     )
 
     # Add the requests to the engine.

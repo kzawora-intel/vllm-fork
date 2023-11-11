@@ -174,6 +174,7 @@ class PagedAttention(nn.Module):
                 block_size,
                 input_metadata.max_context_len,
                 alibi_slopes,
+                input_metadata.attention_masks,
             )
         else:
             # Run PagedAttention V2.
@@ -204,6 +205,7 @@ class PagedAttention(nn.Module):
                 block_size,
                 input_metadata.max_context_len,
                 alibi_slopes,
+                input_metadata.attention_masks,
             )
 
     def forward(
