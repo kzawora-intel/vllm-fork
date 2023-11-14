@@ -107,19 +107,24 @@ class BloomAttention(nn.Module):
         self.attn = PagedAttention(self.num_heads, self.head_dim,
                                             scaling)
 
+    def set_kv_cache(
+        self,
+        kv_cache
+    ):
+        k_cache, v_cache = kv_cache
+        self.attn.set_kv_cache(k_cache, v_cache)
+
     def forward(
         self,
         position_ids: torch.Tensor,
         hidden_states: torch.Tensor,
-        kv_cache: KVCache,
         input_metadata: InputMetadata,
         cache_event: Optional[torch.cuda.Event],
     ) -> torch.Tensor:
         del position_ids  # Unused.
         qkv, _ = self.query_key_value(hidden_states)
         q, k, v = qkv.chunk(chunks=3, dim=-1)
-        k_cache, v_cache = kv_cache
-        attn_output = self.attn(q, k, v, k_cache, v_cache, input_metadata,
+        attn_output = self.attn(q, k, v, input_metadata,
                                 cache_event)
         output, _ = self.dense(attn_output)
         return output
@@ -164,11 +169,16 @@ class BloomBlock(nn.Module):
         self.apply_residual_connection_post_layernorm = (
             config.apply_residual_connection_post_layernorm)
 
+    def set_kv_cache(
+        self,
+        kv_cache
+    ):
+        self.self_attention.set_kv_cache(kv_cache)
+
     def forward(
         self,
         position_ids: torch.Tensor,
         hidden_states: torch.Tensor,
-        kv_cache: KVCache,
         input_metadata: InputMetadata,
         cache_event: Optional[torch.cuda.Event],
     ) -> torch.Tensor:
@@ -185,7 +195,6 @@ class BloomBlock(nn.Module):
         attention_output = self.self_attention(
             position_ids=position_ids,
             hidden_states=layernorm_output,
-            kv_cache=kv_cache,
             input_metadata=input_metadata,
             cache_event=cache_event,
         )
@@ -224,11 +233,17 @@ class BloomModel(nn.Module):
         # Final Layer Norm
         self.ln_f = nn.LayerNorm(self.embed_dim, eps=config.layer_norm_epsilon)
 
+    def set_kv_cache(
+        self,
+        kv_caches
+    ):
+        for i in range(len(self.h)):
+            self.h[i].set_kv_cache(kv_caches[i])
+
     def forward(
         self,
         input_ids: torch.Tensor,
         position_ids: torch.Tensor,
-        kv_caches: List[KVCache],
         input_metadata: InputMetadata,
         cache_events: Optional[List[torch.cuda.Event]],
     ) -> torch.Tensor:
@@ -243,7 +258,6 @@ class BloomModel(nn.Module):
             hidden_states = layer(
                 position_ids,
                 hidden_states,
-                kv_caches[i],
                 input_metadata,
                 cache_event,
             )
@@ -262,15 +276,20 @@ class BloomForCausalLM(nn.Module):
         self.lm_head_weight = self.transformer.word_embeddings.weight
         self.sampler = Sampler(config.vocab_size)
 
+    def set_kv_cache(
+        self,
+        kv_caches
+    ):
+        self.transformer.set_kv_cache(kv_caches)
+
     def forward(
         self,
         input_ids: torch.Tensor,
         positions: torch.Tensor,
-        kv_caches: List[KVCache],
         input_metadata: InputMetadata,
         cache_events: Optional[List[torch.cuda.Event]],
     ) -> SamplerOutput:
-        hidden_states = self.transformer(input_ids, positions, kv_caches,
+        hidden_states = self.transformer(input_ids, positions,
                                          input_metadata, cache_events)
         next_tokens = self.sampler(self.lm_head_weight, hidden_states,
                                    input_metadata)
