@@ -145,8 +145,7 @@ class PagedAttention(nn.Module):
             input_metadata: metadata for paged attention.
             alibi_slopes: shape = [num_heads]
         """
-        # block_size = value_cache.shape[3]
-        block_size = 16
+        block_size = value_cache.shape[3]
         num_seqs, num_heads, head_size = query.shape
         max_num_partitions = (
             (input_metadata.max_context_len + _PARTITION_SIZE - 1) //
@@ -291,10 +290,27 @@ class PagedAttention(nn.Module):
             assert key_cache is not None and value_cache is not None, (
                 "key_cache and value_cache must be provided when "
                 "generating tokens.")
-            # Compute the attention op for generation tokens.
-            self.single_query_cached_kv_attention(output, query, key_cache,
-                                                  value_cache, input_metadata,
-                                                  self.get_alibi_slopes())
+
+            if query.device.type == "hpu":
+                block_size = value_cache.shape[3]
+                output = attention_ops.paged_attention_v1(
+                    query,
+                    key_cache,
+                    value_cache,
+                    self.head_mapping,
+                    self.scale,
+                    input_metadata.block_tables,
+                    input_metadata.context_lens,
+                    block_size,
+                    input_metadata.max_context_len,
+                    self.get_alibi_slopes(),
+                    input_metadata.attention_masks,
+                )
+            else:
+                # Compute the attention op for generation tokens.
+                self.single_query_cached_kv_attention(output, query, key_cache,
+                                                    value_cache, input_metadata,
+                                                    self.get_alibi_slopes())
 
         # Reshape the output tensor.
         # NOTE(woosuk): The output tensor may include paddings.
