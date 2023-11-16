@@ -63,8 +63,6 @@ class PagedAttention(nn.Module):
             raise ValueError(f"head_size ({self.head_size}) is not supported. "
                              f"Supported head sizes: {_SUPPORTED_HEAD_SIZES}.")
 
-        self.key_cache, self.value_cache = None, None
-
     def set_attn_bias(
         self,
         input_metadata: InputMetadata,
@@ -125,13 +123,6 @@ class PagedAttention(nn.Module):
             slopes: shape = [num_heads]
         """
         return None
-
-    def set_kv_cache(
-        self,
-        k_cache, v_cache
-    ):
-        self.key_cache = k_cache
-        self.value_cache = v_cache
 
     def single_query_cached_kv_attention(
         self,
@@ -204,8 +195,8 @@ class PagedAttention(nn.Module):
                 max_logits,
                 tmp_output,
                 query,
-                self.key_cache,
-                self.value_cache,
+                key_cache,
+                value_cache,
                 self.head_mapping,
                 self.scale,
                 input_metadata.block_tables,
@@ -221,6 +212,8 @@ class PagedAttention(nn.Module):
         query: torch.Tensor,
         key: torch.Tensor,
         value: torch.Tensor,
+        key_cache: Optional[torch.Tensor],
+        value_cache: Optional[torch.Tensor],
         input_metadata: InputMetadata,
         cache_event: Optional[torch.cuda.Event],
     ) -> torch.Tensor:
@@ -273,7 +266,7 @@ class PagedAttention(nn.Module):
         # Reshape the keys and values and store them in the cache.
         # When key_cache and value_cache are not provided, the new key
         # and value vectors will not be cached.
-        if self.key_cache is not None and self.value_cache is not None:
+        if key_cache is not None and value_cache is not None:
             key_to_cache = key
             value_to_cache = value
             slot_mapping = input_metadata.slot_mapping.view(-1)
@@ -285,8 +278,8 @@ class PagedAttention(nn.Module):
             cache_ops.reshape_and_cache(
                 key_to_cache,
                 value_to_cache,
-                self.key_cache,
-                self.value_cache,
+                key_cache,
+                value_cache,
                 slot_mapping,
                 is_prompt=True if input_metadata.prompt_lens else False
             )
@@ -294,16 +287,16 @@ class PagedAttention(nn.Module):
         if input_metadata.num_generation_tokens > 0:
             # Decoding run.
             assert input_metadata.num_prompt_tokens == 0
-            assert self.key_cache is not None and self.value_cache is not None, (
+            assert key_cache is not None and value_cache is not None, (
                 "key_cache and value_cache must be provided when "
                 "generating tokens.")
 
             if query.device.type == "hpu":
-                block_size = self.value_cache.shape[3]
+                block_size = value_cache.shape[3]
                 output = attention_ops.paged_attention_v1(
                     query,
-                    self.key_cache,
-                    self.value_cache,
+                    key_cache,
+                    value_cache,
                     self.head_mapping,
                     self.scale,
                     input_metadata.block_tables,
@@ -315,8 +308,8 @@ class PagedAttention(nn.Module):
                 )
             else:
                 # Compute the attention op for generation tokens.
-                self.single_query_cached_kv_attention(output, query, self.key_cache,
-                                                    self.value_cache, input_metadata,
+                self.single_query_cached_kv_attention(output, query, key_cache,
+                                                    value_cache, input_metadata,
                                                     self.get_alibi_slopes())
 
         # Reshape the output tensor.

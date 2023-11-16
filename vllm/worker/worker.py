@@ -111,6 +111,7 @@ class Worker:
         self.model(
             input_ids=input_tokens,
             positions=input_positions,
+            kv_caches=[(None, None)] * num_layers,
             input_metadata=input_metadata,
             cache_events=None,
         )
@@ -144,7 +145,6 @@ class Worker:
                                         self.parallel_config)
         self.cache_events = self.cache_engine.events
         self.gpu_cache = self.cache_engine.gpu_cache
-        self.model.set_kv_cache(self.gpu_cache)
 
     def _prepare_inputs(
         self,
@@ -309,14 +309,7 @@ class Worker:
         }
         block_tables_tensor = torch.tensor(padded_block_tables,
                                            dtype=torch.int,
-                                           device="cuda")
-        print(f"Input Metadata -- \n\
-                tokens tensor: {tokens_tensor.shape}, \n\
-                position tensor: {positions_tensor.shape}, \n\
-                slot mapping tensor: {slot_mapping_tensor.shape}, \n\
-                context lens tensor: {context_lens_tensor.shape}, \n\
-                block tables tensor: {block_tables_tensor.shape}, \n\
-              ")
+                                           device="cpu")
 
         seq_data: Dict[int, SequenceData] = {}
         for seq_group_metadata in seq_group_metadata_list:
@@ -337,14 +330,14 @@ class Worker:
 
         # Create attention mask
         attn_masks = [
-            torch.zeros((tokens_tensor.shape[0], self.block_size), dtype=torch.int64) for _ in range(max_num_blocks_per_seq)]
+            torch.zeros((len(input_tokens), self.block_size), dtype=torch.int64) for _ in range(max_num_blocks_per_seq)]
         for i in range(0, max_num_blocks_per_seq):
-            for seq_id in range(tokens_tensor.shape[0]):
+            for seq_id in range(len(input_tokens)):
                 if (i * self.block_size) < context_lens[seq_id] and (i + 1) * self.block_size > context_lens[seq_id]:
                     attn_masks[i][seq_id, :context_lens[seq_id] % self.block_size] = 1
-                elif (i + 1) * self.block_size <= context_lens[seq_id]:
+                elif (i+1) * self.block_size <= context_lens[seq_id]:
                     attn_masks[i][seq_id, :] = 1
-            attn_masks[i] = attn_masks[i].to("hpu", non_blocking=True)
+            attn_masks[i] = attn_masks[i].to(device="cuda", non_blocking=True)
         input_metadata.attention_masks = attn_masks
         print("input token shape: ", tokens_tensor.shape)
         return tokens_tensor, positions_tensor, input_metadata
@@ -389,6 +382,7 @@ class Worker:
         output = self.model(
             input_ids=input_tokens,
             positions=input_positions,
+            kv_caches=self.gpu_cache,
             input_metadata=input_metadata,
             cache_events=cache_events,
         )
