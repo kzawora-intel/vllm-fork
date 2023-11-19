@@ -72,7 +72,8 @@ class InputMetadata:
         assert block_tables.shape[0] == self.num_generation_tokens
 
         # Set during the execution of the first attention op.
-        self.attn_bias: Optional[AttentionBias] = None
+        # self.attn_bias: Optional[AttentionBias] = None
+        self.attn_bias: Optional[torch.Tensor] = None
 
     def __repr__(self) -> str:
         # Print only useful metadata.

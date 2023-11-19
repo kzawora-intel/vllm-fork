@@ -4,8 +4,8 @@ from typing import Any, Dict, List, Optional
 import torch
 import torch.nn as nn
 from xformers import ops as xops
-# from xformers.ops.fmha.attn_bias import (BlockDiagonalCausalMask,
-#                                          LowerTriangularMaskWithTensorBias)
+from xformers.ops.fmha.attn_bias import (BlockDiagonalCausalMask,
+                                         LowerTriangularMaskWithTensorBias)
 
 from vllm import attention_ops
 from vllm import cache_ops
@@ -63,21 +63,45 @@ class PagedAttention(nn.Module):
             raise ValueError(f"head_size ({self.head_size}) is not supported. "
                              f"Supported head sizes: {_SUPPORTED_HEAD_SIZES}.")
 
+    # def set_attn_bias(
+    #     self,
+    #     input_metadata: InputMetadata,
+    #     dtype: torch.dtype,
+    # ) -> None:
+    #     del dtype  # Unused.
+    #     if input_metadata.attn_bias is not None:
+    #         # Already set by a previous layer.
+    #         return
+    #     prompt_lens = [input_metadata.max_prompt_len
+    #                    ] * input_metadata.num_prompts
+    #     attn_bias = xops.fmha.attn_bias.BlockDiagonalCausalMask.from_seqlens(prompt_lens)
+    #     if self.sliding_window is not None:
+    #         attn_bias = attn_bias.make_local_attention(self.sliding_window)
+    #     input_metadata.attn_bias = attn_bias
+
     def set_attn_bias(
         self,
         input_metadata: InputMetadata,
         dtype: torch.dtype,
     ) -> None:
-        del dtype  # Unused.
         if input_metadata.attn_bias is not None:
             # Already set by a previous layer.
             return
-        prompt_lens = [input_metadata.max_prompt_len
-                       ] * input_metadata.num_prompts
-        attn_bias = BlockDiagonalCausalMask.from_seqlens(prompt_lens)
-        if self.sliding_window is not None:
-            attn_bias = attn_bias.make_local_attention(self.sliding_window)
-        input_metadata.attn_bias = attn_bias
+        prompt_lens = input_metadata.prompt_lens
+        max_prompt_len = input_metadata.max_prompt_len # max_prompt_len = max(prompt_lens)
+        mask_tensor = torch.ones(len(prompt_lens), max_prompt_len, max_prompt_len, dtype=dtype)
+        for i in range(len(prompt_lens)):
+            mask_tensor[i, : prompt_lens[i], : prompt_lens[i]] = torch.triu(
+                mask_tensor[i, : prompt_lens[i], : prompt_lens[i]],
+                diagonal=1
+            )
+        attn_mask = torch.block_diag(*mask_tensor)
+        attn_mask = attn_mask * -10000.0 # torch.finfo(dtype).min
+        input_metadata.attn_bias = attn_mask.to(device="cuda")
+        cu_seq_lens = [0]
+        for i in range(len(prompt_lens)):
+            cu_seq_lens.append(cu_seq_lens[-1] + max_prompt_len)
+        input_metadata.cu_seq_lens = cu_seq_lens
 
     def multi_query_kv_attention(
         self,
@@ -108,6 +132,7 @@ class PagedAttention(nn.Module):
             query.unsqueeze(0),
             key.unsqueeze(0),
             value.unsqueeze(0),
+            cu_seq_lens=input_metadata.cu_seq_lens,
             attn_bias=input_metadata.attn_bias,
             p=0.0,
             scale=self.scale,
@@ -250,7 +275,7 @@ class PagedAttention(nn.Module):
         if num_prompt_tokens > 0:
             # Prompt run.
             assert input_metadata.num_generation_tokens == 0
-            # self.set_attn_bias(input_metadata, dtype=query.dtype)
+            self.set_attn_bias(input_metadata, dtype=query.dtype)
             self.multi_query_kv_attention(
                 output,
                 query,
