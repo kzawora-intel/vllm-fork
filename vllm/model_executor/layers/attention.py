@@ -12,7 +12,7 @@ from vllm import cache_ops
 from vllm.model_executor.input_metadata import InputMetadata
 from vllm.model_executor.layers.rotary_embedding import (
     DynamicNTKScalingRotaryEmbedding, LinearScalingRotaryEmbedding,
-    RotaryEmbedding, YaRNScalingRotaryEmbedding)
+    LlamaRotaryEmbedding, YaRNScalingRotaryEmbedding)
 
 _SUPPORTED_HEAD_SIZES = [64, 80, 96, 112, 128, 256]
 # Should be the same as PARTITION_SIZE in `paged_attention_v2_launcher`.
@@ -300,14 +300,14 @@ class PagedAttention(nn.Module):
                 value_to_cache = value_to_cache[input_metadata.to_cache]
                 slot_mapping = slot_mapping[input_metadata.to_cache]
 
-            cache_ops.reshape_and_cache(
-                key_to_cache,
-                value_to_cache,
-                key_cache,
-                value_cache,
-                slot_mapping,
-                is_prompt=True if input_metadata.prompt_lens else False
-            )
+            # cache_ops.reshape_and_cache(
+            #     key_to_cache,
+            #     value_to_cache,
+            #     key_cache,
+            #     value_cache,
+            #     slot_mapping,
+            #     is_prompt=True if input_metadata.prompt_lens else False
+            # )
 
         if input_metadata.num_generation_tokens > 0:
             # Decoding run.
@@ -365,9 +365,9 @@ class PagedAttentionWithRoPE(PagedAttention):
                          num_kv_heads,
                          sliding_window=sliding_window)
         if rope_scaling is None:
-            self.rotary_emb = RotaryEmbedding(head_size, rotary_dim,
+            self.rotary_emb = LlamaRotaryEmbedding(head_size, rotary_dim,
                                               max_position, base,
-                                              is_neox_style)
+                                              is_neox_style).to('cpu')
         else:
             scaling_type = rope_scaling["type"]
             scaling_factor = rope_scaling["factor"]
@@ -426,7 +426,9 @@ class PagedAttentionWithRoPE(PagedAttention):
 
         # Apply rotary embedding to the query and key before passing them
         # to the attention op.
-        query, key = self.rotary_emb(positions, query, key)
+        query, key = self.rotary_emb(positions.to('cpu'), query.to('cpu'), key.to('cpu'))
+        query = query.to('cuda')
+        key = key.to('cuda')
         return super().forward(
             query,
             key,
