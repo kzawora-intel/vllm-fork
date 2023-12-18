@@ -4,6 +4,11 @@ import torch.nn as nn
 
 from vllm import layernorm_ops
 
+try:
+    from habana_frameworks.torch.hpex.normalization import FusedRMSNorm as FusedRMSNorm
+except ImportError:
+    print("Not using HPU fused kernel for RMSNorm")
+    FusedRMSNorm = None
 
 class RMSNorm(nn.Module):
     """Root mean square normalization.
@@ -22,6 +27,10 @@ class RMSNorm(nn.Module):
         self.variance_epsilon = eps
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if x.device.type == "hpu" and FusedRMSNorm:
+            orig_dtype = x.dtype
+            x = FusedRMSNorm.apply(x.float(), self.weight.float(), self.variance_epsilon)
+            return x.to(orig_dtype)
         out = torch.empty_like(x)
         layernorm_ops.rms_norm(
             out,

@@ -367,7 +367,7 @@ class PagedAttentionWithRoPE(PagedAttention):
         if rope_scaling is None:
             self.rotary_emb = LlamaRotaryEmbedding(head_size, rotary_dim,
                                               max_position, base,
-                                              is_neox_style).to('cpu')
+                                              is_neox_style)#, device='cpu').to('cpu')
         else:
             scaling_type = rope_scaling["type"]
             scaling_factor = rope_scaling["factor"]
@@ -426,9 +426,9 @@ class PagedAttentionWithRoPE(PagedAttention):
 
         # Apply rotary embedding to the query and key before passing them
         # to the attention op.
-        query, key = self.rotary_emb(positions.to('cpu'), query.to('cpu'), key.to('cpu'))
-        query = query.to('cuda')
-        key = key.to('cuda')
+        query, key = self.rotary_emb(positions, query, key)#.to('cpu'), query.to('cpu'), key.to('cpu'))
+        #query = query.to('cuda')
+        #key = key.to('cuda')
         return super().forward(
             query,
             key,
