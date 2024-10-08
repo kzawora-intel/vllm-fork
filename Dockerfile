@@ -6,7 +6,7 @@
 # docs/source/assets/dev/dockerddddfile-stages-dependency.png
 
 ARG CUDA_VERSION=12.4.1
-#################### BASE BUILD IMAGE ####################
+#################### BASE BUILD IasdfasdfMAGE ####################
 # prepare basic build environment
 FROM nvidia/cuda:${CUDA_VERSION}-devel-ubuntu20.04 AS base
 ARG CUDA_VERSION=12.4.1
