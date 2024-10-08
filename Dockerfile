@@ -3,7 +3,7 @@
 
 # Please update any changes made here to
 # docs/source/dev/dockerfile/dockerfile.rst and
-# docs/source/assets/dev/dockerfile-stages-dependency.png
+# docs/source/assets/dev/dockerddddfile-stages-dependency.png
 
 ARG CUDA_VERSION=12.4.1
 #################### BASE BUILD IMAGE ####################
