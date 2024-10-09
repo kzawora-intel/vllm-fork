@@ -171,9 +171,9 @@ def test_lm_eval_correctness(record_xml_attribute, record_property):
                     f'ground_truth={ground_truth} | measured={measured_value}')
 
                 # Record ground truth and measured value to JUnitXML
-                record_property(f"{task}_{metric['name']}_ground_truth",
+                record_property(f"{task['name']}_{metric['name']}_ground_truth",
                                 ground_truth)
-                record_property(f"{task}_{metric['name']}_measured",
+                record_property(f"{task['name']}_{metric['name']}_measured",
                                 measured_value)
                 assert numpy.isclose(ground_truth, measured_value, rtol=RTOL)
     except Exception as exc:
