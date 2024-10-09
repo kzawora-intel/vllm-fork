@@ -1,12 +1,12 @@
 # The vLLM Dockerfile is used to construct vLLM image that can be directly used
-# to run the OpenAI compatible server.
+# to run the OpenAI compatible server.asdfasdf
 
 # Please update any changes made here to
 # docs/source/dev/dockerfile/dockerfile.rst and
-# docs/source/assets/dev/dockerfile-stages-dependency.png
+# docs/source/assets/dev/dockerddddfile-stages-dependency.png
 
 ARG CUDA_VERSION=12.4.1
-#################### BASE BUILD IMAGE ####################
+#################### BASE BUILD IasdfasdfMAGE ####################
 # prepare basic build environment
 FROM nvidia/cuda:${CUDA_VERSION}-devel-ubuntu20.04 AS base
 ARG CUDA_VERSION=12.4.1
